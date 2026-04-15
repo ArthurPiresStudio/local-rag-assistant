@@ -40,3 +40,4 @@ Se os documentos recuperados tiverem similaridade abaixo de 0.5, avise o usuári
 1. Contexto do RAG (documentação do projeto) — maior prioridade
 2. Arquivo enviado pelo usuário — contexto imediato
 3. Conhecimento técnico geral — base de apoio
+
