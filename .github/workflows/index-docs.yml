@@ -1,0 +1,52 @@
+name: Index Docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**/*.md"
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # precisamos do commit anterior para detectar arquivos alterados
+
+      - name: Get changed .md files
+        id: changed
+        run: |
+          # Lista arquivos .md em /docs que foram adicionados ou modificados
+          FILES=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'docs/*.md' 'docs/**/*.md')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Changed files: $FILES"
+
+      - name: Index changed documents
+        if: steps.changed.outputs.files != ''
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          for FILE in ${{ steps.changed.outputs.files }}; do
+            echo "Indexing: $FILE"
+            CONTENT=$(cat "$FILE")
+            FILENAME=$(basename "$FILE")
+
+            curl -s -X POST "$SUPABASE_URL/functions/v1/index-documents" \
+              -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"content\": $(echo "$CONTENT" | jq -Rs .),
+                \"metadata\": {
+                  \"source\": \"github\",
+                  \"filename\": \"$FILENAME\",
+                  \"path\": \"$FILE\"
+                }
+              }"
+
+            echo "Done: $FILE"
+          done
