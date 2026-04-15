@@ -90,3 +90,4 @@ O `zIndex` sobe para `9999` durante `ctaNavigating` para cobrir toda a UI. O `bo
 ## Padrão geral
 
 > Quando uma navegação deve ser precedida de uma animação de UI, use um estado booleano de transição (`isNavigating`, `ctaNavigating`, etc.) controlado por `setTimeout` escalonado. Nunca chame `navigate()` diretamente no `onClick` se houver animação pendente.
+
