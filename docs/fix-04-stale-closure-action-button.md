@@ -82,3 +82,4 @@ Para resolver o problema do IIFE recriar o Framer Motion:
 ## Padrão geral
 
 > Sempre que um `onClick` precisar ler estado React dentro de `setTimeout`s encadeados, use um `ref` sincronizado com o estado no corpo do componente (`ref.current = state`). Nunca confie em closure para ler estado dentro de callbacks assíncronos — o valor pode estar stale. Atualize o ref manualmente após cada `setState` que precise ser refletido imediatamente.
+  
