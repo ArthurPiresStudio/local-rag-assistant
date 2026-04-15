@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "docs/**/*.md"
+      - "docs/*.md"
 
 jobs:
   index:
@@ -15,12 +16,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # precisamos do commit anterior para detectar arquivos alterados
+          fetch-depth: 2
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
 
       - name: Get changed .md files
         id: changed
         run: |
-          # Lista arquivos .md em /docs que foram adicionados ou modificados
           FILES=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'docs/*.md' 'docs/**/*.md')
           echo "files=$FILES" >> $GITHUB_OUTPUT
           echo "Changed files: $FILES"
@@ -36,7 +39,7 @@ jobs:
             CONTENT=$(cat "$FILE")
             FILENAME=$(basename "$FILE")
 
-            curl -s -X POST "$SUPABASE_URL/functions/v1/index-documents" \
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$SUPABASE_URL/functions/v1/index-documents" \
               -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
               -H "Content-Type: application/json" \
               -d "{
@@ -46,7 +49,17 @@ jobs:
                   \"filename\": \"$FILENAME\",
                   \"path\": \"$FILE\"
                 }
-              }"
+              }")
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n-1)
+
+            echo "Response ($HTTP_CODE): $BODY"
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Error indexing $FILE: $BODY"
+              exit 1
+            fi
 
             echo "Done: $FILE"
           done
