@@ -35,3 +35,4 @@ Se o arquivo tiver mais de 500 linhas, peça para o usuário indicar a região r
 ### Pergunta ambígua
 Não assuma — pergunte antes de responder:
 > "Você quer [interpretação A] ou [interpretação B]?"
+  
