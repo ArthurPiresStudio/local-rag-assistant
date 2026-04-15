@@ -40,3 +40,4 @@ O CSS transition funciona puramente com base no valor atual do estilo, sem depen
 ## Padrão geral
 
 > Evite usar `motion.div` para animar propriedades de layout (`height`, `bottom`, `width`) em componentes criados dentro de IIFEs ou funções inline. Prefira CSS transition nativo nesses casos. Reserve o Framer Motion para animações de elementos com ciclo de vida estável (montagem/desmontagem com `AnimatePresence`, componentes com identidade fixa).
+   
