@@ -1,97 +1,98 @@
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+/**
+ * index-documents/index.ts
+ * Edge Function do Supabase para indexar documentos com embedding.
+ *
+ * Recebe: { content: string, metadata: object }
+ * Gera embedding via modelo gte-small (nativo do Supabase AI)
+ * Salva no pgvector (tabela documents)
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CHUNK_SIZE = 500;
-const CHUNK_OVERLAP = 50;
+const OVERLAP    = 50;
 
-/** Divide texto em chunks com overlap */
-function chunkText(text: string, size = CHUNK_SIZE, overlap = CHUNK_OVERLAP): string[] {
+// ── Chunking ────────────────────────────────────────────────────────
+
+function chunkText(text: string): string[] {
   const chunks: string[] = [];
   let start = 0;
   while (start < text.length) {
-    const end = Math.min(start + size, text.length);
+    const end = start + CHUNK_SIZE;
     chunks.push(text.slice(start, end));
-    start += size - overlap;
+    start += CHUNK_SIZE - OVERLAP;
   }
   return chunks;
 }
 
-/** Gera embedding via Ollama (nomic-embed-text) */
-async function getEmbedding(text: string, ollamaUrl: string): Promise<number[]> {
-  const res = await fetch(`${ollamaUrl}/api/embeddings`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "nomic-embed-text", prompt: text }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Ollama embedding error: ${err}`);
-  }
-  const data = await res.json();
-  return data.embedding;
-}
+// ── Handler ─────────────────────────────────────────────────────────
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-
+Deno.serve(async (req: Request) => {
   try {
-    const ollamaUrl = Deno.env.get("OLLAMA_URL");
-    if (!ollamaUrl) {
-      return new Response(JSON.stringify({ error: "OLLAMA_URL not configured" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Só aceita POST
+    if (req.method !== "POST") {
+      return new Response("Method not allowed", { status: 405 });
     }
 
-    const { content, metadata = {} } = await req.json();
+    const { content, metadata } = await req.json();
+
     if (!content || typeof content !== "string") {
-      return new Response(JSON.stringify({ error: "content (string) is required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Campo 'content' obrigatório e deve ser string." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    // Chunking
+    // Cliente Supabase com service_role (necessário para inserção)
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
     const chunks = chunkText(content);
-    console.log(`Splitting into ${chunks.length} chunks`);
-
-    // Supabase client com service role
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const results = [];
+    const indexed: number[] = [];
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
-      // Gera embedding
-      const embedding = await getEmbedding(chunk, ollamaUrl);
+      // Gera embedding via Supabase AI (gte-small, 384 dimensões)
+      const { data: embedData, error: embedError } = await supabase.functions.invoke(
+        "supabase-ai-embedding",
+        { body: { input: chunk } }
+      );
 
-      // Salva no Supabase
-      const { data, error } = await supabase.from("documents").insert({
-        content: chunk,
-        metadata: { ...metadata, chunk_index: i, total_chunks: chunks.length },
-        embedding: JSON.stringify(embedding),
-      }).select("id");
+      if (embedError) throw new Error(`Embedding error: ${embedError.message}`);
 
-      if (error) throw error;
-      results.push({ id: data?.[0]?.id, chunk_index: i });
+      const embedding = embedData.embedding;
+
+      // Insere no pgvector
+      const { error: insertError } = await supabase
+        .from("documents")
+        .insert({
+          content: chunk,
+          metadata: { ...(metadata ?? {}), chunk_index: i },
+          embedding,
+        });
+
+      if (insertError) throw new Error(`Insert error: ${insertError.message}`);
+
+      indexed.push(i);
     }
 
-    return new Response(JSON.stringify({
-      message: `${chunks.length} chunks indexed successfully`,
-      chunks: results,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    console.error("Index error:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        chunks_indexed: indexed.length,
+        filename: metadata?.filename ?? null,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Erro desconhecido";
+    return new Response(
+      JSON.stringify({ error: message }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 });
