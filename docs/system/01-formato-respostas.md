@@ -44,3 +44,4 @@ Nomes de funções, variáveis e comentários de código podem ficar em inglês 
 - Nunca responda só com código sem explicação
 - Nunca truncar o arquivo corrigido com `// ... resto do código`
 - Nunca inventar APIs, funções ou comportamentos que não existem
+
