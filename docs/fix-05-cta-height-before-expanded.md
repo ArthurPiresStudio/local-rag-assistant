@@ -79,3 +79,4 @@ Os valores de `collapsed` e `default` foram aumentados em ~25px em relação aos
 ## Padrão geral
 
 > Nunca use `motion.div` para animar propriedades de layout (`height`, `bottom`, `top`, `width`) em elementos sem identidade estável (dentro de IIFEs, funções inline, ou sem `key` definida). Use CSS transition nativo nesses casos — ele é stateless por natureza e funciona corretamente em qualquer contexto de renderização.
+   
