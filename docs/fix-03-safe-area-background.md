@@ -42,3 +42,4 @@ Adicionar um `div` fixo separado que cobre exclusivamente a área do safe area, 
 ## Padrão geral
 
 > Quando um container fixo na parte inferior da tela tem `overflow: hidden` e não pode "vazar" seu fundo para o safe area, use um div auxiliar fixo com `height: env(safe-area-inset-bottom)` e o mesmo `backgroundColor`. Mantenha o `zIndex` dele logo abaixo do container principal.
+   
